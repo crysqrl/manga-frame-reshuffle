@@ -45,7 +45,6 @@ def parse_arguments(parser):
     b_width = args.width
     bottom_pixels = args.bottom
     save_location = args.save_location
-    print((file_list, folder_path, join_enabled, save_location), (b_height, b_width, h_blocks, v_blocks, bottom_pixels))
     return (file_list, folder_path, join_enabled, save_location), (b_height, b_width, h_blocks, v_blocks, bottom_pixels)
 
 
@@ -148,7 +147,6 @@ def main():
 
     if len(reshuffled_images) == 2 and join_enabled:
         name = f'{image_list[0].stem}_{image_list[1].name}'
-        print(name)
         reshuffled_image = join_images(reshuffled_images)
         save_image(name, reshuffled_image, save_location)
     else:
