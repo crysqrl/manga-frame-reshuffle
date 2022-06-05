@@ -1,22 +1,13 @@
 import sys
-import os
-from argparse import ArgumentParser, ArgumentTypeError
+from argparse import ArgumentParser
 from collections import namedtuple
 from pathlib import Path
-
+from exceptions import NoImagesError, MinMaxError
 import numpy as np
 from PIL import Image
 
 
 IMAGE_EXTS = ['.png', '.jpg', '.jpeg']
-
-
-class MinMaxError(ArgumentTypeError):
-    pass
-
-
-class NoImagesError(FileNotFoundError):
-    pass
 
 
 def min_max_int(min_value=0, max_val=float('inf')):
@@ -59,31 +50,31 @@ def parse_arguments(parser):
 
 
 def is_folder_exist(path):
-    if not os.path.isdir(path):
+    if not Path(path).is_dir():
         raise FileNotFoundError('Not directory or directory doesn\'t exist.')
     return True
 
 
 def is_file_exist(path):
-    return not os.path.isfile(path)
+    return Path(path).is_file()
 
 
 def load_files(file_list):
     file_names = []
     for file_path in file_list:
-        ext = os.path.splitext(file_path)[1]
+        ext = Path(file_path).suffix
         if not is_file_exist(file_path) or ext not in IMAGE_EXTS:
             continue
-        file_names.append(file_path)
+        file_names.append(Path(file_path))
 
     if not file_names:
-        raise NoImagesError('Folder doesn\'t contain images or no appropriate images provided.')
+        raise NoImagesError('No images found.')
 
     return file_names
 
 
 def load_files_from_folder(path):
-    file_list = os.listdir(path)
+    file_list = Path(path).iterdir()
     file_names = load_files(file_list)
 
     return file_names
@@ -111,14 +102,31 @@ def join_images(image_list):
     return np.hstack(tuple(image_list))
 
 
-def save_images(image_list, save_location):
-    if not os.path.exists(save_location):
-        os.makedirs(save_location)
+def save_image(name, image, save_location):
+    Path(save_location).mkdir(parents=True, exist_ok=True)
 
-    for name, img in image_list:
-        image = Image.fromarray(img)
-        save_path = Path(save_location).joinpath(f'reshuffled_{name}')
-        image.save(save_path)
+    image = Image.fromarray(image)
+    save_path = Path(save_location).joinpath(f'reshuffled_{name}')
+    image.save(save_path)
+
+
+def save_images(names, image_list, save_location):
+    for name, image in zip(names, image_list):
+        save_image(name, image, save_location)
+
+
+def process_images(image_list, settings):
+    reshuffled_images = []
+    stems = []
+    for image_path in image_list:
+
+        image = Image.open(image_path)
+        image = np.asarray(image)
+        reshuffled_image = reshuffle_image(image, settings)
+
+        reshuffled_images.append(reshuffled_image)
+
+    return reshuffled_images
 
 
 def main():
@@ -136,16 +144,17 @@ def main():
     Settings = namedtuple('Setting', ['b_height', 'b_width', 'h_blocks', 'v_blocks', 'bp'])
     shuffle_settings = Settings(*arg_settings)
 
-    processed_images = []
-    for image_path in image_list:
-        name = Path(image_path).name
-        img_path = Path(folder_path).joinpath(image_path)
-        img = Image.open(img_path)
-        img = np.asarray(img)
-        img = reshuffle_image(img, shuffle_settings)
-        processed_images.append((name, img))
+    reshuffled_images = process_images(image_list, shuffle_settings)
 
-    save_images(processed_images, save_location)
+    if len(reshuffled_images) == 2 and join_enabled:
+        name = f'{image_list[0].stem}_{image_list[1].name}'
+        print(name)
+        reshuffled_image = join_images(reshuffled_images)
+        save_image(name, reshuffled_image, save_location)
+    else:
+        names = [image_path.name for image_path in image_list]
+        save_images(names, reshuffled_images, save_location)
+
 
 if __name__ == '__main__':
     try:
